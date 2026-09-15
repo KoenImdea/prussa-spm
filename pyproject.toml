@@ -1,0 +1,23 @@
+[project]
+name = "3d-print-spm"
+version = "0.1.0"
+description = "Turn a Prusa MK3S+ into a scanning probe microscope: GUI-driven surface scanning with the PINDA sensor"
+readme = "README.md"
+authors = [
+    { email = "lauw.koen@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "matplotlib>=3.11.1",
+    "notebook>=7.6.2",
+    "numpy>=2.5.3",
+    "pyserial>=3.5",
+    "spiepy>=0.2.1",
+]
+
+[project.scripts]
+3d-print-spm = "spm.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.12.6,<0.13.0"]
+build-backend = "uv_build"
