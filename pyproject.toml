@@ -1,5 +1,5 @@
 [project]
-name = "3d-print-spm"
+name = "spm"
 version = "0.1.0"
 description = "Turn a Prusa MK3S+ into a scanning probe microscope: GUI-driven surface scanning with the PINDA sensor"
 readme = "README.md"
@@ -12,6 +12,8 @@ dependencies = [
     "notebook>=7.6.2",
     "numpy>=2.5.3",
     "pyserial>=3.5",
+    "scikit-image>=0.26.0",
+    "scipy>=1.11.0",
     "spiepy>=0.2.1",
 ]
 

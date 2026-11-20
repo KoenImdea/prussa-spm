@@ -58,8 +58,13 @@ class App:
     completed_scans : list of dict
         History of completed scans for overlay on the bed map.
     """
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root: tk.Tk, demo: bool = False):
         self.root = root
+
+        # demo mode: scans fly the fast hover trajectory over the known
+        # demo surface and report model z values; the GUI is intentionally
+        # identical to a real scan (no visible demo indicator).
+        self.demo = demo
 
         root.title("Prusa SPM Scanner")
         root.minsize(760, 760)
@@ -378,6 +383,7 @@ class App:
             max_depth=self._fval(self.var_maxdepth, "Max depth"),
             plate_lift=self._fval(self.var_platelift, "Plate lift Z"),
             probe_mode=self.var_probe.get(),
+            demo=self.demo,
         )
         if cfg.probe_mode not in ("g30", "manual"):
             raise ValueError("probe mode must be 'g30' or 'manual'")
@@ -682,7 +688,7 @@ class App:
         self.img_canvas.draw_idle()
 
 
-def main() -> None:
+def main(demo: bool = False) -> None:
     root = tk.Tk()
-    App(root)
+    App(root, demo=demo)
     root.mainloop()

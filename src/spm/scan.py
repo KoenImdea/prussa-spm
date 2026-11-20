@@ -55,6 +55,10 @@ class ScanConfig:
     probe_mode : str
         Probing method: 'g30' (fast, firmware) or 'manual' (step-down).
         Defaults to 'g30'.
+    demo : bool
+        Demo mode: no probing. The tip hovers over the known demo-surface
+        model at maximum speed while z values are reported from the model,
+        so the run looks like a real scan. Defaults to False.
     """
     x0: float
     x1: float
@@ -67,6 +71,7 @@ class ScanConfig:
     plate_lift: float = 0.0  # Z height to lift after homing to place a flat
     # plate (workaround for warped bed); 0 = off
     probe_mode: str = "g30"  # "g30" (fast, firmware descent) or "manual"
+    demo: bool = False  # demo mode: hover over known surface, z from model
 
     def grid(self) -> tuple[np.ndarray, np.ndarray]:
         """
@@ -193,9 +198,14 @@ class ScanJob(threading.Thread):
                     self.q.put(("aborted", None))
                     return
 
+            xs, ys = cfg.grid()
+
+            if cfg.demo:
+                self._run_demo(xs, ys)
+                return
+
             self.scanner.raise_z(cfg.z_clearance)
 
-            xs, ys = cfg.grid()
             nx, ny = xs.size, ys.size
             total = nx * ny
             self.q.put(("grid", nx, ny, float(xs[0]), float(xs[-1]), float(ys[0]), float(ys[-1])))
@@ -247,3 +257,53 @@ class ScanJob(threading.Thread):
                 self.q.put(("done", str(csv_path) if csv_path else None))
         except Exception as e:  # noqa: BLE001 - report any failure to the GUI
             self.q.put(("error", f"{type(e).__name__}: {e}"))
+
+    def _run_demo(self, xs: np.ndarray, ys: np.ndarray) -> None:
+        """Demo mode: hover over the known surface at max speed, report z
+        from the surface model. Emits the same events as a real scan."""
+        from .demo import DEMO_MARGIN, SurfaceModel, build_trajectory
+
+        self.q.put(("status", "Preparing scan..."))
+        surface = SurfaceModel()
+        pts = [
+            (float(xs[ix]), float(ys[iy]))
+            for iy in range(ys.size)
+            for ix in range(xs.size)
+        ]
+        traj = build_trajectory(pts, surface, DEMO_MARGIN)
+
+        nx, ny = xs.size, ys.size
+        total = nx * ny
+        self.q.put(("grid", nx, ny, float(xs[0]), float(xs[-1]), float(ys[0]), float(ys[-1])))
+        self.q.put(("status", f"Scanning {total} points..."))
+
+        results: list[tuple[float, float, float | None]] = []
+        aborted = False
+        try:
+            for cmd, _ in traj.preamble:
+                self.scanner.send_command(cmd)
+            for i, (x, y, moves) in enumerate(traj.points):
+                if self.abort_event.is_set():
+                    aborted = True
+                    break
+                for cmd, _ in moves:
+                    self.scanner.send_command(cmd)
+                self.scanner.send_command("M400")  # sync: tip is at the hover
+                z = float(surface(x, y)[0])  # model data (no safety offset)
+                ix = int(round((x - xs[0]) / (xs[1] - xs[0]))) if nx > 1 else 0
+                iy = int(round((y - ys[0]) / (ys[1] - ys[0]))) if ny > 1 else 0
+                results.append((x, y, z))
+                self.q.put(("point", ix, iy, x, y, z))
+                self.q.put(("status", f"[{len(results)}/{total}] X:{x:g} Y:{y:g} Z:{z:.2f}"))
+        finally:
+            try:
+                for cmd, _ in traj.postamble:
+                    self.scanner.send_command(cmd)
+            except Exception:
+                pass
+
+        csv_path = save_csv(results) if results else None
+        if aborted:
+            self.q.put(("aborted", str(csv_path) if csv_path else None))
+        else:
+            self.q.put(("done", str(csv_path) if csv_path else None))

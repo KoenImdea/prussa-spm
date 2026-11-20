@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+scans/
+demo_surface/demo_surface.stl
