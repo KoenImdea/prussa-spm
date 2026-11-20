@@ -11,3 +11,5 @@ wheels/
 
 scans/
 demo_surface/demo_surface.stl
+
+.DS_Store
